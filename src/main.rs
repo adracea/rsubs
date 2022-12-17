@@ -1,6 +1,6 @@
 use rsubs_lib::{
+    util::color::Color,
     util::time::{self, time_from_string},
-    Color,
 };
 
 fn main() {
