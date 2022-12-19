@@ -32,6 +32,7 @@ pub fn make_time(
         fps: fs2,
     }
 }
+#[derive(Debug)]
 pub struct Time {
     h: String,
     m: String,
