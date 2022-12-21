@@ -52,6 +52,8 @@ dependencies = [
 [[package]]
 name = "rsubs-lib"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "534c0a82c11116a37758a8b2312bbdf56386645ddcdab1ebcc084f9c1f757321"
 dependencies = [
  "once_cell",
  "regex",
