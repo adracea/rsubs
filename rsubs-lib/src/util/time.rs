@@ -1,5 +1,7 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
+use std::ops::Add;
+use std::ops::Sub;
 use std::result::Result;
 use std::{fmt, ops::Div};
 
@@ -17,12 +19,12 @@ pub fn make_time(
     frames: Option<String>,
     fps: Option<String>,
 ) -> Time {
-    let h2 = h.or(Some("0".to_string())).unwrap();
-    let m2 = m.or(Some("0".to_string())).unwrap();
-    let s2 = s.or(Some("0".to_string())).unwrap();
-    let ms2 = ms.or(Some("0".to_string())).unwrap();
-    let f2 = frames.or(Some("0".to_string()));
-    let fs2 = fps.or(Some("0".to_string()));
+    let h2 = h.unwrap_or_else(|| "0".to_string());
+    let m2 = m.unwrap_or_else(|| "0".to_string());
+    let s2 = s.unwrap_or_else(|| "0".to_string());
+    let ms2 = ms.unwrap_or_else(|| "0".to_string());
+    let f2 = frames.or_else(|| Some("0".to_string()));
+    let fs2 = fps.or_else(|| Some("0".to_string()));
     Time {
         h: h2,
         m: m2,
@@ -32,7 +34,8 @@ pub fn make_time(
         fps: fs2,
     }
 }
-#[derive(Debug)]
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Time {
     h: String,
     m: String,
@@ -80,49 +83,65 @@ pub fn ms_to_time(ms: u32) -> String {
     .split('.')
     .collect::<Vec<&str>>()
     .get(1)
-    .or_else(|| Some(&"0"))
+    .or(Some(&"0"))
     .expect("Should be good")
     .to_string();
-    // println!(
-    //     "{}",
-    //     format!("{:0>2}", hms)
-    //         + ":"
-    //         + &format!("{:0>2}", mms).to_string()
-    //         + ":"
-    //         + &format!("{:0>2}", sms).to_string()
-    //         + "."
-    //         + msms
-    // );
     format!("{:0>2}", hms)
         + ":"
-        + &format!("{:0>2}", mms).to_string()
+        + &format!("{:0>2}", mms)
         + ":"
-        + &format!("{:0>2}", sms).to_string()
+        + &format!("{:0>2}", sms)
         + "."
         + msms
 }
 pub fn time_from_string(s: String) -> Time {
     let mut t = Time::default();
-    t.h = s.split(':').collect::<Vec<&str>>()[0].to_string();
-    t.m = s.split(':').collect::<Vec<&str>>()[1].to_string();
-    t.s = s.split(':').collect::<Vec<&str>>()[2]
-        .to_string()
-        .split(&[',', '.'])
-        .collect::<Vec<&str>>()[0]
-        .to_string();
-    t.ms = s
-        .split(':')
-        .collect::<Vec<&str>>()
-        .get(2)
-        .unwrap_or(&"0")
-        .to_string()
-        .split(&[',', '.'])
-        .collect::<Vec<&str>>()
-        .get(1)
-        .unwrap_or(&"0")
-        .to_string();
+    let splits = s.split(':').collect::<Vec<&str>>();
+    match splits.len() {
+        2 => {
+            t.h = "0".to_string();
+            t.m = splits[0].to_string();
+            t.s = splits[1]
+                .to_string()
+                .split(&[',', '.'])
+                .collect::<Vec<&str>>()[0]
+                .to_string();
+            t.ms = splits
+                .get(1)
+                .unwrap_or(&"0")
+                .to_string()
+                .split(&[',', '.'])
+                .collect::<Vec<&str>>()
+                .get(1)
+                .unwrap_or(&"0")
+                .to_string();
+        }
+        3 => {
+            t.h = splits[0].to_string();
+            t.m = splits[1].to_string();
+            t.s = splits[2]
+                .to_string()
+                .split(&[',', '.'])
+                .collect::<Vec<&str>>()[0]
+                .to_string();
+            t.ms = splits
+                .get(2)
+                .unwrap_or(&"0")
+                .to_string()
+                .split(&[',', '.'])
+                .collect::<Vec<&str>>()
+                .get(1)
+                .unwrap_or(&"0")
+                .to_string();
+        }
+        _ => {}
+    }
+
     t
 }
+
+impl std::error::Error for Time {}
+
 impl Time {
     pub fn new(
         h: String,
@@ -157,7 +176,7 @@ impl Time {
     pub fn timestamp_to_ms(&self) -> u32 {
         (self.h.parse::<u32>().expect("Not an int") * 3600000)
             + (self.m.parse::<u32>().expect("Not an int") * 60000)
-            + ((self.s.to_string() + &".".to_string() + &self.ms)
+            + ((self.s.to_string() + "." + &self.ms)
                 .parse::<f32>()
                 .expect("Not an int")
                 * 1000.0)
@@ -191,19 +210,67 @@ impl Time {
         self.ms = t.ms;
         self.derive_frames();
     }
+
+    // Adds <u32>ms to `self` and updates.
     pub fn add_ms(&mut self, ms: u32) {
         self.update_from_ms(self.total_ms() + ms)
     }
-    pub fn sub_ms(&mut self, ms: u32) -> Result<(), ()> {
+    // Subtracts <u32>ms from `self` and updates. Panics if total ms < 0
+    pub fn sub_ms(&mut self, ms: u32) -> Result<(), &mut Time> {
         if ms > self.total_ms() {
-            Err(())
+            Err(self)
         } else {
             self.update_from_ms(self.total_ms() - ms);
             Ok(())
         }
     }
+    pub fn to_ass_string(self) -> String {
+        format!(
+            "{:0>1}:{:0>2}:{:0>2}.{:.*}",
+            self.h, self.m, self.s, 2, self.ms
+        )
+    }
+    pub fn to_srt_string(self) -> String {
+        format!(
+            "{:0>2}:{:0>2}:{:0>2},{:0<3}",
+            self.h, self.m, self.s, self.ms
+        )
+    }
 }
-
+// Add <u32>ms to a `Time` struct
+impl Add<u32> for Time {
+    type Output = Time;
+    fn add(self, other: u32) -> Time {
+        let mut t = self;
+        t.add_ms(other);
+        t
+    }
+} // Subtracts <u32>ms to a `Time` struct
+impl Sub<u32> for Time {
+    type Output = Time;
+    fn sub(self, other: u32) -> Time {
+        let mut t = self;
+        t.sub_ms(other).expect("Negative time");
+        t
+    }
+} // Subtracts <i32>ms to a `Time` struct
+impl Sub<i32> for Time {
+    type Output = Time;
+    fn sub(self, other: i32) -> Time {
+        let mut t = self;
+        t.sub_ms(other.try_into().unwrap()).expect("Negative time");
+        t
+    }
+}
+// Add <i32>ms to a `Time` struct
+impl Add<i32> for Time {
+    type Output = Time;
+    fn add(self, other: i32) -> Time {
+        let mut t = self;
+        t.add_ms(other.try_into().unwrap());
+        t
+    }
+}
 impl fmt::Display for Time {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
