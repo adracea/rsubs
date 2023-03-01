@@ -16,3 +16,8 @@ categories = ["api-bindings"]
 
 
 rsubs-lib = "0.1"
+eframe = { version="0.21", features = [
+    "__screenshot", # __screenshot is so we can dump a screenshot using EFRAME_SCREENSHOT_TO
+] }
+rfd = "0.11"
+tracing-subscriber = "0.3"
