@@ -14,7 +14,6 @@ categories = ["api-bindings"]
 
 [dependencies]
 
-
 rsubs-lib = "0.1"
 eframe = { version="0.21", features = [
     "__screenshot", # __screenshot is so we can dump a screenshot using EFRAME_SCREENSHOT_TO
