@@ -1,5 +1,7 @@
+use std::fs;
 use std::fs::File;
 use std::io::Read;
+use std::io::Write;
 
 use eframe::egui;
 
@@ -40,10 +42,20 @@ impl eframe::App for Rsubs {
                     if ui.button("Open").clicked() {
                         if let Some(path) = rfd::FileDialog::new().pick_file() {
                             self.filename = path.display().to_string();
-                            File::open(self.filename.clone())
-                                .unwrap()
-                                .read_to_string(&mut self.file)
-                                .unwrap();
+                            self.file = fs::read_to_string(self.filename.clone()).unwrap();
+                        }
+                    }
+                    if ui.button("Save").clicked()
+                        && !self.filename.is_empty()
+                        && File::open(self.filename.clone()).is_ok()
+                    {
+                        println!("{}", self.filename.clone());
+                        fs::write(self.filename.clone(), self.file.clone()).unwrap();
+                    }
+                    if ui.button("Save As...").clicked() {
+                        if let Some(path) = rfd::FileDialog::new().save_file() {
+                            self.filename = path.display().to_string();
+                            fs::write(self.filename.clone(), self.file.clone()).unwrap();
                         }
                     }
                     if ui.button("Exit").clicked() {
