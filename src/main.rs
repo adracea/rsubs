@@ -2,6 +2,7 @@ use std::fs;
 use std::fs::File;
 
 use eframe::egui;
+use eframe::epaint::Color32;
 fn main() -> Result<(), eframe::Error> {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
@@ -20,6 +21,7 @@ fn main() -> Result<(), eframe::Error> {
 struct Rsubs {
     filename: String,
     file: String,
+    selected_color: Color32,
 }
 
 impl Default for Rsubs {
@@ -27,6 +29,7 @@ impl Default for Rsubs {
         Self {
             filename: "".to_owned(),
             file: "".to_owned(),
+            selected_color: Color32::BLUE,
         }
     }
 }
@@ -115,6 +118,16 @@ impl eframe::App for Rsubs {
                 });
             });
         });
+        let mut layouter = |ui: &egui::Ui, string: &str, _wrap_width: f32| {
+            let mut layout_job: egui::text::LayoutJob = egui::text::LayoutJob::simple(
+                string.to_owned(),
+                egui::FontId::monospace(12.0),
+                egui::Color32::from_rgb(255, 255, 255),
+                f32::INFINITY,
+            );
+            layout_job.wrap.max_width = f32::INFINITY;
+            ui.fonts(|f| f.layout_job(layout_job))
+        };
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
@@ -143,22 +156,11 @@ impl eframe::App for Rsubs {
                                             ui.label(egui::RichText::new(text).code().size(12.0));
                                         });
                                     });
-                                    let mut layouter =
-                                        |ui: &egui::Ui, string: &str, _wrap_width: f32| {
-                                            let mut layout_job: egui::text::LayoutJob =
-                                                egui::text::LayoutJob::simple(
-                                                    string.to_owned(),
-                                                    egui::FontId::monospace(12.0),
-                                                    egui::Color32::from_rgb(255, 255, 255),
-                                                    f32::INFINITY,
-                                                );
-                                            layout_job.wrap.max_width = f32::INFINITY;
-                                            ui.fonts(|f| f.layout_job(layout_job))
-                                        };
                                     let text_editor =
                                         egui::text_edit::TextEdit::multiline(&mut self.file)
                                             .code_editor()
                                             .hint_text("Code Here")
+                                            .id("editor".into())
                                             .min_size([600.0, 700.0].into())
                                             .desired_width(f32::INFINITY)
                                             .layouter(&mut layouter);
