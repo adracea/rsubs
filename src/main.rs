@@ -2,7 +2,7 @@ use std::fs;
 use std::fs::File;
 
 use eframe::egui;
-
+use eframe::epaint::Color32;
 fn main() -> Result<(), eframe::Error> {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
@@ -21,6 +21,7 @@ fn main() -> Result<(), eframe::Error> {
 struct Rsubs {
     filename: String,
     file: String,
+    selected_color: Color32,
 }
 
 impl Default for Rsubs {
@@ -28,40 +29,105 @@ impl Default for Rsubs {
         Self {
             filename: "".to_owned(),
             file: "".to_owned(),
+            selected_color: Color32::BLUE,
+        }
+    }
+}
+impl Rsubs {
+    fn save_file(&self) {
+        println!("{}", self.filename.clone());
+        fs::write(self.filename.clone(), self.file.clone()).unwrap();
+    }
+    fn saveas_file(&mut self) {
+        if let Some(path) = rfd::FileDialog::new().save_file() {
+            self.filename = path.display().to_string();
+            fs::write(self.filename.clone(), self.file.clone()).unwrap();
+        }
+    }
+    fn open_file(&mut self) {
+        if let Some(path) = rfd::FileDialog::new().pick_file() {
+            self.filename = path.display().to_string();
+            self.file = fs::read_to_string(self.filename.clone()).unwrap();
         }
     }
 }
 
 impl eframe::App for Rsubs {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        let save_shortcut = egui::KeyboardShortcut::new(
+            egui::Modifiers {
+                alt: false,
+                ctrl: false,
+                shift: false,
+                mac_cmd: true,
+                command: true,
+            },
+            egui::Key::S,
+        );
+        let saveas_shortcut = egui::KeyboardShortcut::new(
+            egui::Modifiers {
+                alt: false,
+                ctrl: false,
+                shift: true,
+                mac_cmd: true,
+                command: true,
+            },
+            egui::Key::S,
+        );
+        let open_shortcut = egui::KeyboardShortcut::new(
+            egui::Modifiers {
+                alt: false,
+                ctrl: false,
+                shift: false,
+                mac_cmd: true,
+                command: true,
+            },
+            egui::Key::O,
+        );
+        let save_btn = egui::Button::new("Save").shortcut_text(ctx.format_shortcut(&save_shortcut));
+        let saveas_btn =
+            egui::Button::new("Save As...").shortcut_text(ctx.format_shortcut(&saveas_shortcut));
+        let open_btn = egui::Button::new("Open").shortcut_text(ctx.format_shortcut(&open_shortcut));
+        if ctx.input_mut(|i| i.consume_shortcut(&open_shortcut)) {
+            self.open_file();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&save_shortcut)) {
+            self.save_file();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&saveas_shortcut)) {
+            self.saveas_file();
+        }
         egui::TopBottomPanel::top("top").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    if ui.button("Open").clicked() {
-                        if let Some(path) = rfd::FileDialog::new().pick_file() {
-                            self.filename = path.display().to_string();
-                            self.file = fs::read_to_string(self.filename.clone()).unwrap();
-                        }
+                    if (ui.add(open_btn)).clicked() {
+                        self.open_file();
                     }
-                    if ui.button("Save").clicked()
+                    if ui.add(save_btn).clicked()
                         && !self.filename.is_empty()
                         && File::open(self.filename.clone()).is_ok()
                     {
-                        println!("{}", self.filename.clone());
-                        fs::write(self.filename.clone(), self.file.clone()).unwrap();
+                        self.save_file();
                     }
-                    if ui.button("Save As...").clicked() {
-                        if let Some(path) = rfd::FileDialog::new().save_file() {
-                            self.filename = path.display().to_string();
-                            fs::write(self.filename.clone(), self.file.clone()).unwrap();
-                        }
+                    if ui.add(saveas_btn).clicked() {
+                        self.saveas_file();
                     }
                     if ui.button("Exit").clicked() {
-                        frame.close()
+                        frame.close();
                     }
                 });
             });
         });
+        let mut layouter = |ui: &egui::Ui, string: &str, _wrap_width: f32| {
+            let mut layout_job: egui::text::LayoutJob = egui::text::LayoutJob::simple(
+                string.to_owned(),
+                egui::FontId::monospace(12.0),
+                egui::Color32::from_rgb(255, 255, 255),
+                f32::INFINITY,
+            );
+            layout_job.wrap.max_width = f32::INFINITY;
+            ui.fonts(|f| f.layout_job(layout_job))
+        };
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
@@ -90,22 +156,11 @@ impl eframe::App for Rsubs {
                                             ui.label(egui::RichText::new(text).code().size(12.0));
                                         });
                                     });
-                                    let mut layouter =
-                                        |ui: &egui::Ui, string: &str, _wrap_width: f32| {
-                                            let mut layout_job: egui::text::LayoutJob =
-                                                egui::text::LayoutJob::simple(
-                                                    string.to_owned(),
-                                                    egui::FontId::monospace(12.0),
-                                                    egui::Color32::from_rgb(255, 255, 255),
-                                                    f32::INFINITY,
-                                                );
-                                            layout_job.wrap.max_width = f32::INFINITY;
-                                            ui.fonts(|f| f.layout_job(layout_job))
-                                        };
                                     let text_editor =
                                         egui::text_edit::TextEdit::multiline(&mut self.file)
                                             .code_editor()
                                             .hint_text("Code Here")
+                                            .id("editor".into())
                                             .min_size([600.0, 700.0].into())
                                             .desired_width(f32::INFINITY)
                                             .layouter(&mut layouter);
